@@ -3,7 +3,6 @@ from discord import app_commands
 from discord import VoiceChannel
 import psutil
 import platform
-import pyautogui
 import os
 import asyncio
 import logging
@@ -162,20 +161,6 @@ async def vc_disconnect_command(interact: discord.Interaction):
         filename = exception_traceback.tb_frame.f_code.co_filename
         line_no = exception_traceback.tb_lineno
         await sendException(e, filename, line_no)
-
-
-@tree.command(name="screenshot",description="稼働しているPCのスクリーンを撮影するのだ")
-async def scr_command(interact: discord.Interaction):
-    try:
-        pyautogui.screenshot().save(SCRSHOT)
-        await interact.response.send_message(file=discord.File(SCRSHOT)) 
-
-    except Exception as e:
-        exception_type, exception_object, exception_traceback = sys.exc_info()
-        filename = exception_traceback.tb_frame.f_code.co_filename
-        line_no = exception_traceback.tb_lineno
-        await sendException(e, filename, line_no)
-
 
 @tree.command(name="test",description=f"なにか")#Thank You shizengakari!!
 async def test(interaction: discord.Interaction):
