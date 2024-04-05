@@ -3,28 +3,38 @@ from discord import app_commands
 from discord import VoiceChannel
 import psutil
 import platform
-import pyautogui
 import os
 import asyncio
 import logging
 from random import uniform
 import sys
-import json
 import wave
-import pydub
-import time
 import voicevox_core
 from voicevox_core import AccelerationMode, AudioQuery, VoicevoxCore
 from discord.player import FFmpegOpusAudio
 from collections import deque, defaultdict
 from dotenv import load_dotenv
 import os
+import re
+from database import db_load, get_db_setting, set_db_setting
 
 ROOT_DIR = os.path.dirname(__file__)
 SCRSHOT = os.path.join(ROOT_DIR, "scrshot", "scr.png")
 
 ### ロギングを開始
 logging.basicConfig(level=logging.DEBUG)
+
+###データベースの読み込み
+db_data = db_load("database.db")
+
+if db_data==False:
+    logging.warn("データベースの読み込みに失敗しました")
+
+###読み上げ用のコアをロードし、作成します
+core = VoicevoxCore(
+    acceleration_mode=AccelerationMode.AUTO,
+    open_jtalk_dict_dir = './voicevox/open_jtalk_dic_utf_8-1.11'
+)
 
 ### インテントの生成
 intents = discord.Intents.default()
@@ -33,12 +43,13 @@ intents.voice_states = True
 logging.debug("discord.py -> インテント生成完了")
 
 ### クライアントの生成
-client = discord.Client(intents=intents, activity=discord.Game(name="CMDTree Testing"))
+client = discord.Client(intents=intents, activity=discord.Game(name="起きようとしています..."))
 logging.debug("discord.py -> クライアント生成完了")
 
 ### コマンドツリーの作成
-tree = app_commands.CommandTree(client=client)
+tree = app_commands.CommandTree(client=client) 
 logging.debug("discord.py -> ツリー生成完了")
+
 
 @client.event
 async def on_ready():
@@ -61,8 +72,107 @@ async def vc_command(interact: discord.Interaction):
             return
         
         await interact.user.voice.channel.connect()
-        await interact.response.send_message("接続したのだ！")
-        await queue_yomiage("接続したのだ。", interact.guild, 1)
+        
+        ##接続を知らせるメッセージを送信
+        channel_id = get_db_setting(db_data[0], interact.guild_id, "speak_channel")
+        channel = discord.utils.get(interact.guild.channels, id=channel_id)
+        length_limit = get_db_setting(db_data[0], interact.guild_id, "length_limit")
+        yomiage_speed = get_db_setting(db_data[0], interact.guild_id, "speak_speed")
+        
+        if length_limit is None:
+            set_db_setting(db_data[0], db_data[1], interact.guild_id, "length_limit", 80) ##文字数制限が設定されていない場合は新しく設定する
+            length_limit = 80
+
+        if yomiage_speed is None:
+            set_db_setting(db_data[0], db_data[1], interact.guild_id, "speak_speed", 1) ##文字数制限が設定されていない場合は新しく設定する
+            yomiage_speed = 1.0
+
+        if length_limit == 0:
+            length_limit = f"!!文字数制限なし!!"
+        else:
+            length_limit = f"{length_limit}文字"
+
+        embed = discord.Embed(
+            title="接続したのだ！",
+            description="ずんだもんが楽しそうに読み上げてくれるって！",
+            color=discord.Color.green()
+        )
+        embed.add_field(
+            name="読み上げるチャンネル",
+            value=channel
+        )
+        embed.add_field(
+            name="読み上げ文字数の制限",
+            value=length_limit,
+            inline=False
+        )
+        embed.add_field(
+            name="読み上げスピード",
+            value=yomiage_speed,
+            inline=False
+        )
+        embed.add_field(
+            name="**VOICEVOXを使用しています！**",
+            value="**[VOICEVOX、音声キャラクターの利用規約](<https://voicevox.hiroshiba.jp/>)を閲覧のうえ、正しく使うのだ！**",
+            inline=False
+        )
+
+        embed.set_footer(text="YuranuBot! | Made by yurq_", icon_url=client.user.avatar.url)
+
+        await interact.response.send_message(embed=embed)
+        await yomiage_filter("接続したのだ。", interact.guild, 1)
+
+    except Exception as e:
+        exception_type, exception_object, exception_traceback = sys.exc_info()
+        filename = exception_traceback.tb_frame.f_code.co_filename
+        line_no = exception_traceback.tb_lineno
+        await sendException(e, filename, line_no)
+
+
+@tree.command(name="yomiage-length-limit", description="読み上げる文字数を制限するのだ<<0で無効化するのだ！>>")
+async def yomiage_length_limit(interact: discord.Interaction, length: int):
+    try:
+        result = set_db_setting(db_data[0], db_data[1], interact.guild_id, "length_limit", length)
+        if result is None:
+            await interact.response.send_message(f"☑読み上げ制限を「{length}文字」に設定したのだ！")
+            return
+        await interact.response.send_message(f"設定に失敗したのだ...")
+
+    except Exception as e:
+        exception_type, exception_object, exception_traceback = sys.exc_info()
+        filename = exception_traceback.tb_frame.f_code.co_filename
+        line_no = exception_traceback.tb_lineno
+        await sendException(e, filename, line_no)
+
+
+@tree.command(name="yomiage-channel", description="読み上げるチャンネルを変更するのだ")
+async def yomiage_channel(interact: discord.Interaction, channel: discord.TextChannel):
+    try:
+        result = set_db_setting(db_data[0], db_data[1], interact.guild_id, "speak_channel", channel.id)
+        if result is None:
+            await interact.response.send_message(f"☑「{channel}」を読み上げるのだ！")
+            return
+        await interact.response.send_message(f"設定に失敗したのだ...")
+
+    except Exception as e:
+        exception_type, exception_object, exception_traceback = sys.exc_info()
+        filename = exception_traceback.tb_frame.f_code.co_filename
+        line_no = exception_traceback.tb_lineno
+        await sendException(e, filename, line_no)
+
+
+@tree.command(name="yomiage-speed", description="読み上げの速度を変更するのだ")
+async def yomiage_speed(interact: discord.Interaction, speed: float):
+    try:
+        read_type = "speak_speed"
+        result = set_db_setting(db_data[0], db_data[1], interact.guild_id, read_type, speed)
+
+        if result is None:
+            data = get_db_setting(db_data[0], interact.guild_id, read_type)
+            await interact.response.send_message(f"設定を保存したのだ！ {read_type}: {data}")
+            return
+        
+        await interact.response.send_message("エラーが発生したのだ...")
 
     except Exception as e:
         exception_type, exception_object, exception_traceback = sys.exc_info()
@@ -80,21 +190,35 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
             ##参加時に読み上げる
             if after.channel is not None:
                 if (after.channel.id == bot_client.channel.id):
-                    await queue_yomiage(f"{member.name}が参加したのだ。", member.guild, 3)
+                    await yomiage_filter(f"{member.name}が参加したのだ。", member.guild, 3)
                     return
                 
             ##退席時に読み上げる
             if before.channel is not None:
                 if (before.channel.id == bot_client.channel.id):
-                    await queue_yomiage(f"{member.name}が退席したのだ。", member.guild, 3)
+                    await yomiage_filter(f"{member.name}が退席したのだ。", member.guild, 3)
 
 @client.event ##読み上げ用のイベント
 async def on_message(message: discord.Message):
-    if message.author.bot:
+    if (message.guild.voice_client is None): ##ギルド内に接続していない場合は無視
         return
     
-    if (message.guild.voice_client != None):
-        await queue_yomiage(message.content, message.guild, 3)
+    if message.author.bot: ##ボットの内容は読み上げない
+        return
+    
+    channel = get_db_setting(db_data[0], message.guild.id, "speak_channel") ##読み上げるチャンネルをデータベースから取得
+
+    if (channel is None):
+        embed = discord.Embed(
+            color=discord.Color.red(),
+            title="読み上げるチャンネルがわからないのだ...",
+            description="読み上げを開始するには読み上げるチャンネルを設定してください！"
+        )
+        await message.channel.send(embed=embed)
+        return
+    
+    if (message.channel.id == channel): ##ChannelIDが読み上げ対象のIDと一致しているか
+        await yomiage_filter(message, message.guild, 3) ##難なくエラーをすり抜けたチャンネルにはもれなく読み上げ
 
 yomiage_serv_list = defaultdict(deque)
 
@@ -102,15 +226,45 @@ yomiage_serv_list = defaultdict(deque)
 VC_OUTPUT = "./yomiage_data/"
 FS = 24000
 
+##読み上げのキューに入れる前に特定ワードを変換します
+async def yomiage_filter(content, guild: discord.Guild, spkID: int):
+    fix_words = [r'(https?://\S+)', r'<:[a-zA-Z0-9_]+:[0-9]+>']
+    fix_end_word = ["URL", "えもじ"]
+    
+    ##メンションされたユーザーのIDを名前に変換
+    if isinstance(content, discord.message.Message):
+        fixed_content = content.content
+        for mention in content.mentions:
+            mention_id = mention.id
+            mention_user = mention.name
+            fixed_content = fixed_content.replace(f'<@{mention_id}>', mention_user)
+
+    elif isinstance(content, str):
+        fixed_content = content
+        
+    ##fix_wordに含まれたワードをfix_end_wordに変換する
+    for i in range(len(fix_words)): 
+        fixed_content = re.sub(fix_words[i], fix_end_word[i], fixed_content)
+    
+    length_limit = get_db_setting(db_data[0], guild.id, "length_limit")
+
+    if (length_limit > 0): ##文字数制限(1文字以上なら有効化)
+        speak_content = fixed_content[:length_limit] ##文字数制限（省略もつけちゃうよ♡）
+    else:
+        speak_content = fixed_content
+
+    if (speak_content != fixed_content):
+        speak_content = speak_content + "、省略なのだ"
+
+    await queue_yomiage(speak_content, guild, spkID)
+
 async def queue_yomiage(content: str, guild: discord.Guild, spkID: int):    
     try:
-        core = VoicevoxCore(
-            acceleration_mode=AccelerationMode.AUTO,
-            open_jtalk_dict_dir = './voicevox/open_jtalk_dic_utf_8-1.11'
-        )
+        speed = get_db_setting(db_data[0], guild.id, "speak_speed")
 
         core.load_model(spkID)
         audio_query = core.audio_query(content, spkID)
+        audio_query.speed_scale = speed
         wav = core.synthesis(audio_query, spkID)
 
         ###作成時間を記録するため、timeを利用する
@@ -135,6 +289,7 @@ async def queue_yomiage(content: str, guild: discord.Guild, spkID: int):
         filename = exception_traceback.tb_frame.f_code.co_filename
         line_no = exception_traceback.tb_lineno
         task = asyncio.create_task(sendException(e, filename, line_no))
+        await task
 
 def send_voice(queue, voice_client):
     
@@ -162,20 +317,6 @@ async def vc_disconnect_command(interact: discord.Interaction):
         filename = exception_traceback.tb_frame.f_code.co_filename
         line_no = exception_traceback.tb_lineno
         await sendException(e, filename, line_no)
-
-
-@tree.command(name="screenshot",description="稼働しているPCのスクリーンを撮影するのだ")
-async def scr_command(interact: discord.Interaction):
-    try:
-        pyautogui.screenshot().save(SCRSHOT)
-        await interact.response.send_message(file=discord.File(SCRSHOT)) 
-
-    except Exception as e:
-        exception_type, exception_object, exception_traceback = sys.exc_info()
-        filename = exception_traceback.tb_frame.f_code.co_filename
-        line_no = exception_traceback.tb_lineno
-        await sendException(e, filename, line_no)
-
 
 @tree.command(name="test",description=f"なにか")#Thank You shizengakari!!
 async def test(interaction: discord.Interaction):
@@ -233,32 +374,32 @@ async def pc_status(interact: discord.Interaction):
                     icon_url=client.user.avatar.url
                     )
 
-        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1222923566379696190/1223107315121782855/5000choyen_1.png?ex=6618a674&is=66063174&hm=1d07cc1b74f4872cff500aecd85ecb488725c0260b46d4b2f1dec4d8636741b3&") # サムネイルとして小さい画像を設定できる
+        embed.set_thumbnail(url="https://www.iconsdb.com/icons/download/white/ok-128.png")
 
         embed.add_field(name="**//一般情報//**", inline=False, value=
                         f"> ** OS情報**\n"+
-                        f"> [OS名] {platform.system()}\n"+
-                        f"> [Architecture] {os_info.machine}\n> \n"+
+                        f"> [OS名] **{platform.system()}\n**"+
+                        f"> [Architecture] **{os_info.machine}**\n> \n"+
                         
                         f"> **Python情報**\n"+
-                        f"> [バージョン] {py_version}\n"+
-                        f"> [ビルド日時] {py_buildDate}"
+                        f"> [バージョン] **{py_version}**\n"+
+                        f"> [ビルド日時] **{py_buildDate}**"
                         ) # フィールドを追加。
         embed.add_field(name="**//CPU情報//**", inline=False, value=
-                        f"> [CPU名] {cpu_name}\n"+
-                        f"> [コア数] {cpu_cores} Threads\n"+
-                        f"> [周波数] {cpu_freq:.2f} GHz\n"+
-                        f"> [使用率] {cpu_Load}%\n"
+                        f"> [CPU名] **{cpu_name}**\n"+
+                        f"> [コア数] **{cpu_cores} Threads**\n"+
+                        f"> [周波数] **{cpu_freq:.2f} GHz**\n"+
+                        f"> [使用率] **{cpu_Load}%**\n"
                         )
         embed.add_field(name="**//メモリ情報//**", value=
-                        f"> [使用率] {(ram_info.used/1024/1024/1024):.2f}/{(ram_info.total/1024/1024/1024):.2f} GB"+
-                        f" ({ram_info.percent}%)"
+                        f"> [使用率] **{(ram_info.used/1024/1024/1024):.2f}/{(ram_info.total/1024/1024/1024):.2f} GB"+
+                        f" ({ram_info.percent}%)**"
                         ) # フィールドを追加。
         embed.add_field(name="**//Yuranu情報(?)//**", inline=False, value=
-                        f"> [OS] Yuranu 11 Pro\n"+
-                        f"> [CPU使用率] {yuranu_cpu_load:.1f}%\n"+
-                        f"> [メモリ使用率] {yuranu_mem_load:.2f}/{yuranu_maxmem:.2f}MB"+
-                        f" ({((yuranu_mem_load/yuranu_maxmem)*100):.1f}%)\n"
+                        f"> [OS] **Yuranu 11 Pro**\n"+
+                        f"> [CPU使用率] **{yuranu_cpu_load:.1f}%**\n"+
+                        f"> [メモリ使用率] **{yuranu_mem_load:.2f}/{yuranu_maxmem:.2f}MB"+
+                        f" ({((yuranu_mem_load/yuranu_maxmem)*100):.1f}%)**\n"
                         ) # フィールドを追加。
         
         embed.set_footer(text="YuranuBot! | Made by yurq_",
@@ -301,14 +442,18 @@ async def performance(client: discord.Client):
 
             await client.change_presence(activity=discord.Game(f"{system}に住んでいます"))
 
-            await client.change_presence(activity=discord.Game(f"Use '/' to summon Zundamon"))
+            await client.change_presence(activity=discord.Game(f"ずんだもんは健康です！"))
             await asyncio.sleep(5)
 
-    except Exception as e:
+    except Exception as e:        
+        await client.change_presence(activity=discord.Game(f"RPCエラー: 要報告"))
         exception_type, exception_object, exception_traceback = sys.exc_info()
         filename = exception_traceback.tb_frame.f_code.co_filename
         line_no = exception_traceback.tb_lineno
         await sendException(e, filename, line_no)
+        
+        await asyncio.sleep(5)
+        task = asyncio.create_task(performance(client))
 
 ### 例外発生時に送信するチャンネルのIDを登録
 
