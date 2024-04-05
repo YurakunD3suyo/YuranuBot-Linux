@@ -277,7 +277,7 @@ async def queue_yomiage(content: str, guild: discord.Guild, spkID: int):
             wf.writeframes(wav)  # ステレオデータを書きこむ
 
         queue = yomiage_serv_list[guild.id]
-        queue.append(discord.FFmpegOpusAudio(voice_file))
+        queue.append(await discord.FFmpegOpusAudio.from_probe(voice_file))
     
         if not guild.voice_client.is_playing():
             send_voice(queue, guild.voice_client)
@@ -347,6 +347,12 @@ async def pc_status(interact: discord.Interaction):
         cpu_freq = psutil.cpu_freq().current / 1000
         cpu_Load = psutil.cpu_percent(percpu=False)
         cpu_cores = psutil.cpu_count()
+        for i in range(3):
+            temp_ = psutil.sensors_temperatures()
+            if "coretemp" in temp_:
+                for entry in temp_["coretemp"]:
+                    if entry.label == "Package id 0":
+                        cpu_Temp = f"{entry.current}\u00B0C"
 
         ram_info = psutil.virtual_memory()
         
@@ -389,7 +395,8 @@ async def pc_status(interact: discord.Interaction):
                         f"> [CPU名] **{cpu_name}**\n"+
                         f"> [コア数] **{cpu_cores} Threads**\n"+
                         f"> [周波数] **{cpu_freq:.2f} GHz**\n"+
-                        f"> [使用率] **{cpu_Load}%**\n"
+                        f"> [使用率] **{cpu_Load}%**\n"+
+                        f"> [温度] **{cpu_Temp}**"
                         )
         embed.add_field(name="**//メモリ情報//**", value=
                         f"> [使用率] **{(ram_info.used/1024/1024/1024):.2f}/{(ram_info.total/1024/1024/1024):.2f} GB"+
@@ -430,18 +437,24 @@ async def performance(client: discord.Client):
                 await client.change_presence(activity=discord.Game(f"RAM: {ram_used:.2f}/{ram_total:.2f}GB"))
                 await asyncio.sleep(5)
 
-            hard_id = 0
-            cpu_Temp = psutil.sensors_temperatures()
-            cpu_Load = psutil.cpu_percent()
+            for i in range(3):
+                temp_ = psutil.sensors_temperatures()
+                if "coretemp" in temp_:
+                    for entry in temp_["coretemp"]:
+                        if entry.label == "Package id 0":
+                            cpu_Temp = entry.current
 
-            await client.change_presence(activity=discord.Game(f"CPU: {cpu_Load:.1f}% {cpu_Temp}℃"))
-            await asyncio.sleep(5)
+                cpu_Load = psutil.cpu_percent()
+
+                await client.change_presence(activity=discord.Game(f"CPU: {cpu_Load:.1f}% Temp: {cpu_Temp}\u00B0C"))
+                await asyncio.sleep(5)
 
             await client.change_presence(activity=discord.Game(f"Python {platform.python_version()}"))
             await asyncio.sleep(5)
 
             await client.change_presence(activity=discord.Game(f"{system}に住んでいます"))
-
+            await asyncio.sleep(5)
+            
             await client.change_presence(activity=discord.Game(f"ずんだもんは健康です！"))
             await asyncio.sleep(5)
 
