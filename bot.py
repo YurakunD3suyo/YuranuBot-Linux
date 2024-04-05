@@ -384,7 +384,7 @@ async def pc_status(interact: discord.Interaction):
 
         embed.add_field(name="**//一般情報//**", inline=False, value=
                         f"> ** OS情報**\n"+
-                        f"> [OS名] **{platform.system()}\n**"+
+                        f"> [OS名] **{platform.system()}**\n"+
                         f"> [Architecture] **{os_info.machine}**\n> \n"+
                         
                         f"> **Python情報**\n"+
