@@ -347,12 +347,12 @@ async def pc_status(interact: discord.Interaction):
         cpu_freq = psutil.cpu_freq().current / 1000
         cpu_Load = psutil.cpu_percent(percpu=False)
         cpu_cores = psutil.cpu_count()
-        for i in range(3):
-            temp_ = psutil.sensors_temperatures()
-            if "coretemp" in temp_:
-                for entry in temp_["coretemp"]:
-                    if entry.label == "Package id 0":
-                        cpu_Temp = f"{entry.current}\u00B0C"
+        
+        temp_ = psutil.sensors_temperatures()
+        if "coretemp" in temp_:
+            for entry in temp_["coretemp"]:
+                if entry.label == "Package id 0":
+                    cpu_Temp = f"{entry.current}\u00B0C"
 
         ram_info = psutil.virtual_memory()
         
@@ -439,14 +439,15 @@ async def performance(client: discord.Client):
 
             for i in range(3):
                 temp_ = psutil.sensors_temperatures()
+                cpu_Temp = ""
                 if "coretemp" in temp_:
                     for entry in temp_["coretemp"]:
                         if entry.label == "Package id 0":
-                            cpu_Temp = entry.current
+                            cpu_Temp = f"Temp: {entry.current}\u00B0C"
 
                 cpu_Load = psutil.cpu_percent()
 
-                await client.change_presence(activity=discord.Game(f"CPU: {cpu_Load:.1f}% Temp: {cpu_Temp}\u00B0C"))
+                await client.change_presence(activity=discord.Game(f"CPU: {cpu_Load:.1f}%  {cpu_Temp}"))
                 await asyncio.sleep(5)
 
             await client.change_presence(activity=discord.Game(f"Python {platform.python_version()}"))
