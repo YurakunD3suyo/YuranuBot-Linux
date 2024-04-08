@@ -186,13 +186,18 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
             ##参加時に読み上げる
             if after.channel is not None:
                 if (after.channel.id == bot_client.channel.id):
-                    await yomiage_filter(f"{member.name}が参加したのだ。", member.guild, 3)
-                    return
+                    if (member.nick is not None):##ギルド内のニックネームを読み上げる
+                        await yomiage_filter(f"{member.nick}が参加したのだ。", member.guild, 3)
+                    else:
+                        await yomiage_filter(f"{member.name}が参加したのだ。", member.guild, 3)
                 
             ##退席時に読み上げる
             if before.channel is not None:
                 if (before.channel.id == bot_client.channel.id):
-                    await yomiage_filter(f"{member.name}が退席したのだ。", member.guild, 3)
+                    if member.nick is not None:
+                        await yomiage_filter(f"{member.nick}が退席したのだ。", member.guild, 3)
+                    else:
+                        await yomiage_filter(f"{member.name}が退席したのだ。", member.guild, 3)
 
 @client.event ##読み上げ用のイベント
 async def on_message(message: discord.Message):
