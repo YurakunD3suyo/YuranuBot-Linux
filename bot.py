@@ -16,6 +16,8 @@ from collections import deque, defaultdict
 from dotenv import load_dotenv
 import os
 import re
+import time
+import threading
 from database import db_load, get_db_setting, set_db_setting
 
 ROOT_DIR = os.path.dirname(__file__)
@@ -29,12 +31,6 @@ db_data = db_load("database.db")
 
 if db_data==False:
     logging.warn("データベースの読み込みに失敗しました")
-
-###読み上げ用のコアをロードし、作成します
-core = VoicevoxCore(
-    acceleration_mode=AccelerationMode.AUTO,
-    open_jtalk_dict_dir = './voicevox/open_jtalk_dic_utf_8-1.11'
-)
 
 ### インテントの生成
 intents = discord.Intents.default()
@@ -228,8 +224,8 @@ FS = 24000
 
 ##読み上げのキューに入れる前に特定ワードを変換します
 async def yomiage_filter(content, guild: discord.Guild, spkID: int):
-    fix_words = [r'(https?://\S+)', r'<:[a-zA-Z0-9_]+:[0-9]+>']
-    fix_end_word = ["URL", "えもじ"]
+    fix_words = [r'(https?://\S+)', r'<:[a-zA-Z0-9_]+:[0-9]+>', f"(ﾟ∀ﾟ)"]
+    fix_end_word = ["URL", "えもじ", ""]
     
     ##メンションされたユーザーのIDを名前に変換
     if isinstance(content, discord.message.Message):
@@ -260,43 +256,71 @@ async def yomiage_filter(content, guild: discord.Guild, spkID: int):
 
 async def queue_yomiage(content: str, guild: discord.Guild, spkID: int):    
     try:
+        ##サーバーごとに利用される速度のデータを取得
         speed = get_db_setting(db_data[0], guild.id, "speak_speed")
 
+        ###読み上げ用のコアをロードし、作成します
+        core = VoicevoxCore(
+            acceleration_mode=AccelerationMode.AUTO,
+            open_jtalk_dict_dir = './voicevox/open_jtalk_dic_utf_8-1.11'
+        )
         core.load_model(spkID)
+
         audio_query = core.audio_query(content, spkID)
         audio_query.speed_scale = speed
+        
         wav = core.synthesis(audio_query, spkID)
 
-        ###作成時間を記録するため、timeを利用する
-        voice_file = f"{VC_OUTPUT}{guild.id}.wav"
+        wav_time = time.time() ##作成した時間を入れる
+        voice_file = f"{VC_OUTPUT}{guild.id}-{wav_time}.wav"
 
         with wave.open(voice_file, "w") as wf:
             wf.setnchannels(1)  # チャンネル数の設定 (1:mono, 2:stereo)
             wf.setsampwidth(2)
             wf.setframerate(FS) 
             wf.writeframes(wav)  # ステレオデータを書きこむ
+            
+        with wave.open(voice_file,  'rb') as wr:\
+            # 情報取得
+            fr = wr.getframerate()
+            fn = wr.getnframes()
+            length = fn / fr
+
+        file_list = [voice_file, length]
 
         queue = yomiage_serv_list[guild.id]
-        queue.append(await discord.FFmpegOpusAudio.from_probe(voice_file))
-    
+        queue.append(file_list)
+
         if not guild.voice_client.is_playing():
             send_voice(queue, guild.voice_client)
-        
-        return
             
     except Exception as e:
         exception_type, exception_object, exception_traceback = sys.exc_info()
-        filename = exception_traceback.tb_frame.f_code.co_filename
         line_no = exception_traceback.tb_lineno
-        task = asyncio.create_task(sendException(e, filename, line_no))
-        await task
+        logging.exception(f"読み上げ問題発生： {line_no}行目、 [{type(e)}] {e}")
 
 def send_voice(queue, voice_client):
     
     if not queue or voice_client.is_playing():
         return
+    
     source = queue.popleft()
-    voice_client.play(source, after=lambda e:send_voice(queue, voice_client))
+    voice_client.play(FFmpegOpusAudio(source[0]), after=lambda e:send_voice(queue, voice_client))
+
+    ##再生スタートが完了したら時間差でファイルを削除する。
+    task = threading.Thread(target=delete_file_latency, args=(source[0], source[1]))
+    task.start()
+
+def delete_file_latency(file_name, latency):
+    try:
+        time.sleep(latency+2.0)
+        os.remove(file_name)
+        
+    except Exception as e:
+        exception_type, exception_object, exception_traceback = sys.exc_info()
+        line_no = exception_traceback.tb_lineno
+        logging.exception(f"ファイル削除エラー： {line_no}行目、 [{type(e)}] {e}")
+
 
 
 @tree.command(name="vc-stop", description="ボイスチャンネルから退出するのだ")
@@ -475,16 +499,17 @@ async def sendException(e, filename, line_no):
     channel_myserv = client.get_channel(1222923566379696190)
     channel_sdev = client.get_channel(1223972040319696937)
 
-    embed = discord.Embed( # Embedを定義する
-                title="うまくいかなかったのだ。",# タイトル
-                color=discord.Color.red(), # フレーム色指定(ぬーん神)
-                description=f"例外エラーが発生しました！詳細はこちらをご覧ください。", # Embedの説明文 必要に応じて
-                )
-    embed.add_field(name="**//エラー内容//**", inline=False, value=
-                    f"{filename}({line_no}行) -> [{type(e)}] {e}")
-    
-    await channel_myserv.send(embed=embed)
-    # await channel_sdev.send(embed=embed)
+    if (type(e) == voicevox_core.VoicevoxError): ##読み上げできない文章はエラーを無視する
+        embed = discord.Embed( # Embedを定義する
+                    title="うまくいかなかったのだ。",# タイトル
+                    color=discord.Color.red(), # フレーム色指定(ぬーん神)
+                    description=f"例外エラーが発生しました！詳細はこちらをご覧ください。", # Embedの説明文 必要に応じて
+                    )
+        embed.add_field(name="**//エラー内容//**", inline=False, value=
+                        f"{filename}({line_no}行) -> [{type(e)}] {e}")
+        
+        await channel_myserv.send(embed=embed)
+        # await channel_sdev.send(embed=embed)
 
 load_dotenv()
 BOT_TOKEN = os.getenv("TOKEN")
