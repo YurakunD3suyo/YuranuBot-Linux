@@ -383,6 +383,8 @@ async def pc_status(interact: discord.Interaction):
         py_version = platform.python_version()
         py_buildDate = platform.python_build()[1]
 
+        ping = client.latency * 1000
+
         if (os_info.system == "Windows"): ### Windowsの場合、表記を変更する
             win32_edition = platform.win32_edition()
             win32_ver = os_info.release
@@ -391,8 +393,6 @@ async def pc_status(interact: discord.Interaction):
                 win32_edition = "Pro"
             
             os_name = f"{os_info.system} {win32_ver} {win32_edition}"
-
-        
         
         embed = discord.Embed( ### Embedを定義する
                         title="よしっ、調査完了っと！これが結果なのだ！",# タイトル
@@ -413,8 +413,11 @@ async def pc_status(interact: discord.Interaction):
                         
                         f"> **Python情報**\n"+
                         f"> [バージョン] **{py_version}**\n"+
-                        f"> [ビルド日時] **{py_buildDate}**"
-                        ) # フィールドを追加。
+                        f"> [ビルド日時] **{py_buildDate}**"+
+                        f"> **Discord情報**\n"+
+                        f"> [Discord.py] **Version {discord.__version__}**\n"+
+                        f"> [Ping値] **{ping:.1f}ms**\n"
+                        ) 
         embed.add_field(name="**//CPU情報//**", inline=False, value=
                         f"> [CPU名] **{cpu_name}**\n"+
                         f"> [コア数] **{cpu_cores} Threads**\n"+
