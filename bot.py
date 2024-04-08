@@ -242,7 +242,11 @@ async def yomiage_filter(content, guild: discord.Guild, spkID: int):
         fixed_content = content.content
         for mention in content.mentions:
             mention_id = mention.id
-            mention_user = mention.name
+            if (mention.nick is not None):
+                mention_user = mention.nick
+            else:
+                mention_user = mention.name ##メンションされたユーザーがニックネームを使っている場合、ニックネームを利用
+
             fixed_content = fixed_content.replace(f'<@{mention_id}>', mention_user)
 
     elif isinstance(content, str):
