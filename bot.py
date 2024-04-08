@@ -130,7 +130,7 @@ async def yomiage_length_limit(interact: discord.Interaction, length: int):
     try:
         result = set_db_setting(db_data[0], db_data[1], interact.guild_id, "length_limit", length)
         if result is None:
-            await interact.response.send_message(f"☑読み上げ制限を「{length}文字」に設定したのだ！")
+            await interact.response.send_message(f"☑読み上げ制限を**「{length}文字」**に設定したのだ！")
             return
         await interact.response.send_message(f"設定に失敗したのだ...")
 
@@ -146,7 +146,7 @@ async def yomiage_channel(interact: discord.Interaction, channel: discord.TextCh
     try:
         result = set_db_setting(db_data[0], db_data[1], interact.guild_id, "speak_channel", channel.id)
         if result is None:
-            await interact.response.send_message(f"☑「{channel}」を読み上げるのだ！")
+            await interact.response.send_message(f"☑**「{channel}」**を読み上げるのだ！")
             return
         await interact.response.send_message(f"設定に失敗したのだ...")
 
@@ -165,7 +165,7 @@ async def yomiage_speed(interact: discord.Interaction, speed: float):
 
         if result is None:
             data = get_db_setting(db_data[0], interact.guild_id, read_type)
-            await interact.response.send_message(f"設定を保存したのだ！ {read_type}: {data}")
+            await interact.response.send_message(f"読み上げ速度を**「{data}」**に変更したのだ！")
             return
         
         await interact.response.send_message("エラーが発生したのだ...")
@@ -221,6 +221,11 @@ yomiage_serv_list = defaultdict(deque)
 ## VOICEVOX用の設定
 VC_OUTPUT = "./yomiage_data/"
 FS = 24000
+
+##ディレクトリがない場合は作成する
+if (not os.path.isdir(VC_OUTPUT)):
+    os.mkdir(VC_OUTPUT)
+    
 
 ##読み上げのキューに入れる前に特定ワードを変換します
 async def yomiage_filter(content, guild: discord.Guild, spkID: int):
@@ -413,7 +418,7 @@ async def pc_status(interact: discord.Interaction):
                         
                         f"> **Python情報**\n"+
                         f"> [バージョン] **{py_version}**\n"+
-                        f"> [ビルド日時] **{py_buildDate}**"+
+                        f"> [ビルド日時] **{py_buildDate}**\n"+
                         f"> **Discord情報**\n"+
                         f"> [Discord.py] **Version {discord.__version__}**\n"+
                         f"> [Ping値] **{ping:.1f}ms**\n"
