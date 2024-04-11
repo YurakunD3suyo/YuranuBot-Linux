@@ -370,12 +370,9 @@ async def sbc_command(interact:discord.Interaction):
 async def pc_status(interact: discord.Interaction):
     try:
         os_info = platform.uname()
-        os_bit = platform.architecture()[1]
 
-        hard_id = 0
-        cpu_Temp = "Not Available"
-        cpu_Power = "Not Available"
-        cpu_Load = "Not Available"
+        cpu_Temp = "--温度を取得できませんでした--"
+        cpu_Load = "--負荷を取得できませんでした--"
 
         yuranu_cpu_load = uniform(67.00, 99.00)
         yuranu_maxmem = float(1.4)
@@ -476,7 +473,7 @@ async def performance(client: discord.Client):
                 ram_used = ram_info.used/1024/1024/1024
 
                 await client.change_presence(activity=discord.Game(f"RAM: {ram_used:.2f}/{ram_total:.2f}GB"))
-                await asyncio.sleep(5)
+                await asyncio.sleep(6)
 
             for i in range(3):
                 temp_ = psutil.sensors_temperatures()
@@ -484,21 +481,24 @@ async def performance(client: discord.Client):
                 if "coretemp" in temp_:
                     for entry in temp_["coretemp"]:
                         if entry.label == "Package id 0":
-                            cpu_Temp = f"Temp: {entry.current}\u00B0C"
+                            cpu_Temp = f"{entry.current}\u00B0C"
 
                 cpu_Load = psutil.cpu_percent()
 
                 await client.change_presence(activity=discord.Game(f"CPU: {cpu_Load:.1f}%  {cpu_Temp}"))
-                await asyncio.sleep(5)
+                await asyncio.sleep(6)
 
             await client.change_presence(activity=discord.Game(f"Python {platform.python_version()}"))
-            await asyncio.sleep(5)
+            await asyncio.sleep(6)
+
+            await client.change_presence(activity=discord.Game(f"Discord.py {discord.__version__}"))
+            await asyncio.sleep(6)
 
             await client.change_presence(activity=discord.Game(f"{system}に住んでいます"))
-            await asyncio.sleep(5)
+            await asyncio.sleep(6)
             
             await client.change_presence(activity=discord.Game(f"ずんだもんは健康です！"))
-            await asyncio.sleep(5)
+            await asyncio.sleep(6)
 
     except Exception as e:        
         await client.change_presence(activity=discord.Game(f"RPCエラー: 要報告"))
