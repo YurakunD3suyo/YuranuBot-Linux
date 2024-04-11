@@ -364,7 +364,7 @@ async def test(interaction: discord.Interaction):
 
 @tree.command(name="sbc",description="Shizen Black Companyの説明資料なのだ")#Shizen Black Companyの宣伝
 async def sbc_command(interact:discord.Interaction):
-    await interact.response.send_message('**Lets Join To "Shizen Black Company" (100% Working)** https://black.shizen.lol')
+    await interact.response.send_message('**自然ブラックカンパニーでプロドライバーの力を発揮するのだ！** https://black.shizen.lol')
 
 @tree.command(name="status",description="Botを稼働しているPCの状態を表示するのだ")#PCの状態
 async def pc_status(interact: discord.Interaction):
