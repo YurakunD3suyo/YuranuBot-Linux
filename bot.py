@@ -114,7 +114,7 @@ async def vc_command(interact: discord.Interaction):
         )
         embed.add_field(
             name="読み上げの機能性向上のために、ほかの方にもご協力してもらっています！",
-            value="自然ちゃんありがとうなのだ"
+            value="自然ちゃんありがとうなのだ",
             inline=False
         )
 
