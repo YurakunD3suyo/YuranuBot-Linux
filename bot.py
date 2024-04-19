@@ -112,6 +112,12 @@ async def vc_command(interact: discord.Interaction):
             value="**[VOICEVOX、音声キャラクターの利用規約](<https://voicevox.hiroshiba.jp/>)を閲覧のうえ、正しく使うのだ！**",
             inline=False
         )
+        embed.add_field(
+            name="読み上げの機能性向上のために、ほかの方にもご協力してもらっています！",
+            value="自然ちゃんありがとうなのだ"
+            inline=False
+        )
+
 
         embed.set_footer(text="YuranuBot! | Made by yurq_", icon_url=client.user.avatar.url)
 
@@ -375,7 +381,7 @@ async def pc_status(interact: discord.Interaction):
         cpu_Load = "--負荷を取得できませんでした--"
 
         yuranu_cpu_load = uniform(67.00, 99.00)
-        yuranu_maxmem = float(1.4)
+        yuranu_maxmem = float(1.4) 
         yuranu_mem_load = uniform(yuranu_maxmem-1, yuranu_maxmem)
 
         cpu_name = platform.processor()
