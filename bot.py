@@ -115,7 +115,7 @@ async def vc_command(interact: discord.Interaction):
         )
         embed.add_field(
             name="読み上げの機能性向上のために、ほかの方にもご協力してもらっています！",
-            value="自然ちゃんありがとうなのだ",
+            value="自然係さん、ぬーんさんありがとうなのだ",
             inline=False
         )
 
@@ -185,6 +185,56 @@ async def yomiage_speed(interact: discord.Interaction, speed: float):
         line_no = exception_traceback.tb_lineno
         await sendException(e, filename, line_no)
 
+@tree.command(name="yomiage-join-message", description="参加時の読み上げ内容を変更するのだ<<必ず最初にユーザー名が来るのだ>>")
+async def change_vc_join_message(interact: discord.Interaction, text: str):
+    try:
+        res = set_db_setting(db_data[0], db_data[1], interact.guild_id, "vc_join_message", text)
+        if res is None:
+            await interact.response.send_message("**参加時の読み上げ内容を変更したのだ！**")
+            return
+        
+        await interact.response.send_message("設定に失敗したのだ...")
+
+    except Exception as e:
+        exception_type, exception_object, exception_traceback = sys.exc_info()
+        filename = exception_traceback.tb_frame.f_code.co_filename
+        line_no = exception_traceback.tb_lineno
+        await sendException(e, filename, line_no)
+        
+@tree.command(name="yomiage-exit-message", description="退出時の読み上げ内容を変更するのだ<<必ず最初にユーザー名が来るのだ>>")
+async def change_vc_exit_message(interact: discord.Interaction, text: str):
+    try:
+        res = set_db_setting(db_data[0], db_data[1], interact.guild.id, "vc_exit_message", text)
+        if res is None:
+            await interact.response.send_message("**退出時の読み上げ内容を変更したのだ！**")
+            return
+        
+        await interact.response.send_message("設定に失敗したのだ...")
+
+    except Exception as e:
+        exception_type, exception_object, exception_traceback = sys.exc_info()
+        filename = exception_traceback.tb_frame.f_code.co_filename
+        line_no = exception_traceback.tb_lineno
+        await sendException(e, filename, line_no)
+
+@tree.command(name="yomiage-connect-message", description="読み上げ接続時の読み上げ内容を変更するのだ")
+async def change_vc_exit_message(interact: discord.Interaction, text: str):
+    try:
+        read_type = "vc_connect_message"
+        res = set_db_setting(db_data[0], db_data[1], interact.guild.id, read_type, text)
+        if res is None:
+            await interact.response.send_message("**読み上げ接続時の読み上げ内容を変更したのだ！**")
+            return
+        
+        await interact.response.send_message("設定に失敗したのだ...")  
+        logging.warning(res)  
+
+    except Exception as e:
+        exception_type, exception_object, exception_traceback = sys.exc_info()
+        filename = exception_traceback.tb_frame.f_code.co_filename
+        line_no = exception_traceback.tb_lineno
+        await sendException(e, filename, line_no)
+
 @client.event
 async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
     if (member.bot):##ボットなら無視
@@ -195,18 +245,31 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
             ##参加時に読み上げる
             if after.channel is not None:
                 if (after.channel.id == bot_client.channel.id):
-                    if (member.nick is not None):##ギルド内のニックネームを読み上げる
-                        await yomiage_filter(f"{member.nick}が参加したのだ。", member.guild, 3)
-                    else:
-                        await yomiage_filter(f"{member.name}が参加したのだ。", member.guild, 3)
+                    mess = get_db_setting(db_data[0], after.channel.guild.id, "vc_join_message")#==が参加したのだ
+                    if mess is not None:
+                        await yomiage_filter(f"{member.display_name}{mess}", member.guild, 3)
                 
             ##退席時に読み上げる
             if before.channel is not None:
                 if (before.channel.id == bot_client.channel.id):
-                    if member.nick is not None:
-                        await yomiage_filter(f"{member.nick}が退席したのだ。", member.guild, 3)
-                    else:
-                        await yomiage_filter(f"{member.name}が退席したのだ。", member.guild, 3)
+                    mess = get_db_setting(db_data[0], before.channel.guild.id, "vc_exit_message")#==が退席したのだ
+                    if mess is not None:
+                        await yomiage_filter(f"{member.display_name}{mess}", member.guild, 3)
+
+
+    #カメラ配信の開始・終了を読み上げる
+    if before.self_video != after.self_video:
+        if after.self_video:
+            await yomiage_filter(f"{member.display_name}がカメラ配信を開始したのだ。", member.guild, 3)
+        else:
+            await yomiage_filter(f"{member.display_name}がカメラ配信を終了したのだ。", member.guild, 3)
+    
+    #画面共有の開始・終了を読み上げる
+    if before.self_stream != after.self_stream:
+        if after.self_stream:
+            await yomiage_filter(f"{member.display_name}が画面共有を開始したのだ。", member.guild, 3)
+        else:
+            await yomiage_filter(f"{member.display_name}が画面共有を終了したのだ。", member.guild, 3)
 
 @client.event ##読み上げ用のイベント
 async def on_message(message: discord.Message):
@@ -432,7 +495,8 @@ async def pc_status(interact: discord.Interaction):
                         
                         f"> **Python情報**\n"+
                         f"> [バージョン] **{py_version}**\n"+
-                        f"> [ビルド日時] **{py_buildDate}**\n"+
+                        f"> [ビルド日時] **{py_buildDate}**\n> \n"+
+                        
                         f"> **Discord情報**\n"+
                         f"> [Discord.py] **Version {discord.__version__}**\n"+
                         f"> [Ping値] **{ping:.1f}ms**\n"
