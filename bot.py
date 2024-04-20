@@ -496,7 +496,7 @@ async def pc_status(interact: discord.Interaction):
                         f"> **Python情報**\n"+
                         f"> [バージョン] **{py_version}**\n"+
                         f"> [ビルド日時] **{py_buildDate}**\n> \n"+
-                        
+
                         f"> **Discord情報**\n"+
                         f"> [Discord.py] **Version {discord.__version__}**\n"+
                         f"> [Ping値] **{ping:.1f}ms**\n"
@@ -588,7 +588,7 @@ async def sendException(e, filename, line_no):
     channel_myserv = client.get_channel(1222923566379696190)
     channel_sdev = client.get_channel(1223972040319696937)
 
-    if (type(e) == voicevox_core.VoicevoxError): ##読み上げできない文章はエラーを無視する
+    if (type(e) != voicevox_core.VoicevoxError): ##読み上げできない文章はエラーを無視する
         embed = discord.Embed( # Embedを定義する
                     title="うまくいかなかったのだ。",# タイトル
                     color=discord.Color.red(), # フレーム色指定(ぬーん神)
