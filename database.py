@@ -1,6 +1,19 @@
 import sqlite3
 import logging
 ###データベース関連の処理###
+
+##設定リストの管理
+settings_list = [
+    ("server_id", "INTEGER"),
+    ("speak_channel", "INTEGER"),
+    ("auto_connect", "INTEGER"),
+    ("speak_speed", "REAL"),
+    ("length_limit", "INTEGER"),
+    ("vc_join_message", "TEXT DEFAULT 'がさんかしたのだ！'"),
+    ("vc_exit_message", "TEXT DEFAULT 'がたいせきしたのだ！'"),
+    ("vc_connect_message", "TEXT DEFAULT 'せつぞくしたのだ！'")
+]
+
 ##データベースに接続
 def db_load(file):
     """
@@ -16,13 +29,16 @@ def db_load(file):
     cursor = conn.cursor()
 
     ##ついでに初期処理もしちゃいますねー
-    cursor.execute('''CREATE TABLE IF NOT EXISTS server_settings (
-                        server_id INTEGER PRIMARY KEY,
-                        speak_channel INTEGER,
-                        auto_connect INTEGER,
-                        speak_speed REAL,
-                        length_limit INTEGER
-                    )''')
+    cursor.execute('CREATE TABLE IF NOT EXISTS "server_settings" (server_id INTEGER)')
+
+    ##カラムも追加しますねー
+    cursor.execute("PRAGMA table_info(server_settings)")
+    columns = [column[1] for column in cursor.fetchall()]
+
+    for name, type in settings_list:
+        if name not in columns:
+            cursor.execute(f'ALTER TABLE server_settings ADD COLUMN {name} {type}')
+
     conn.commit()
 
     result = [cursor, conn]
@@ -63,11 +79,12 @@ def set_db_setting(cursor, conn, server_id, type, new_value):
         正常に完了: None, 異常: Exception
     """
     try:
-        result = cursor.execute(f'SELECT {type} FROM server_settings WHERE server_id = {server_id}').fetchone()
+        result = cursor.execute(f'SELECT "{type}" FROM server_settings WHERE server_id = {server_id}').fetchone()
         if result is None:
-            cursor.execute(f'INSERT INTO server_settings (server_id, {type}) VALUES ({server_id}, {new_value})')
+            cursor.execute(f'INSERT INTO server_settings (server_id, "{type}") VALUES ({server_id}, {new_value})')
+            return
     
-        cursor.execute(f'UPDATE server_settings SET {type} = {new_value} WHERE server_id = {server_id}')
+        cursor.execute(f'UPDATE server_settings SET "{type}" = "{new_value}" WHERE server_id = {server_id}')
         conn.commit()
         logging.debug(f"Setting '{server_id}' was updated ({type}: {new_value})")
     except Exception as e:

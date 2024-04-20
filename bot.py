@@ -1,24 +1,25 @@
 import discord
-from discord import app_commands
-from discord import VoiceChannel
 import psutil
 import platform
 import os
 import asyncio
 import logging
-from random import uniform
 import sys
 import wave
 import voicevox_core
-from voicevox_core import AccelerationMode, AudioQuery, VoicevoxCore
-from discord.player import FFmpegOpusAudio
-from collections import deque, defaultdict
-from dotenv import load_dotenv
 import os
 import re
 import time
 import threading
+
+from discord import app_commands
+from discord import VoiceChannel
+from random import uniform
 from database import db_load, get_db_setting, set_db_setting
+from voicevox_core import AccelerationMode, AudioQuery, VoicevoxCore
+from discord.player import FFmpegOpusAudio
+from collections import deque, defaultdict
+from dotenv import load_dotenv
 
 ROOT_DIR = os.path.dirname(__file__)
 SCRSHOT = os.path.join(ROOT_DIR, "scrshot", "scr.png")
@@ -90,7 +91,7 @@ async def vc_command(interact: discord.Interaction):
 
         embed = discord.Embed(
             title="接続したのだ！",
-            description="ずんだもんが楽しそうに読み上げてくれるって！",
+            description="ボイスチャンネルに参加しました！",
             color=discord.Color.green()
         )
         embed.add_field(
@@ -122,7 +123,9 @@ async def vc_command(interact: discord.Interaction):
         embed.set_footer(text="YuranuBot! | Made by yurq_", icon_url=client.user.avatar.url)
 
         await interact.response.send_message(embed=embed)
-        await yomiage_filter("接続したのだ。", interact.guild, 1)
+        mess = get_db_setting(db_data[0], interact.guild_id, "vc_connect_message")
+        if mess is not None:
+            await yomiage_filter(mess, interact.guild, 1)
 
     except Exception as e:
         exception_type, exception_object, exception_traceback = sys.exc_info()
@@ -234,10 +237,9 @@ VC_OUTPUT = "./yomiage_data/"
 FS = 24000
 
 ##ディレクトリがない場合は作成する
-if (not os.path.isdir(VC_OUTPUT)):
+if (os.path.isdir(VC_OUTPUT) == False):
     os.mkdir(VC_OUTPUT)
     
-
 ##読み上げのキューに入れる前に特定ワードを変換します
 async def yomiage_filter(content, guild: discord.Guild, spkID: int):
     fix_words = [r'(https?://\S+)', r'<:[a-zA-Z0-9_]+:[0-9]+>', f"(ﾟ∀ﾟ)"]
